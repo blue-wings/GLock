@@ -11,4 +11,7 @@ public class PathIndex {
     public static final String WAITING_QUEUE_NODE_PATH = LOCK_ROOT_PATH+"/waitingQueue";
     public static final String WAKEUP_QUEUE_NODE_PATH=LOCK_ROOT_PATH+"/wakeupQueue";
     public static final String SPLITER = "/";
+
+    public static final String WRITE_NODE_DATA="write";
+    public static final String READ_NODE_DATA="read";
 }

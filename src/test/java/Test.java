@@ -20,43 +20,54 @@ public class Test {
     ZooKeeper zooKeeper;
     private GReadWriteLock readWriteLock;
     private Lock writeLock;
+    private Lock readLock;
 
     public Test(){
         try {
             zooKeeper = new ZooKeeper(HOSTS, SESSION_TIMEOUT, null);
             readWriteLock = new GReadWriteLock(zooKeeper, "lock1");
             writeLock = readWriteLock.writeLock();
+            readLock = readWriteLock.readLock();
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    public void run(){
+    public void writeRun(){
         try{
             writeLock.lock();
-            System.out.println(Thread.currentThread().getName() + " count " + count--);
-            runInner();
+            System.out.println(Thread.currentThread().getName() + "write count " + count--);
         }finally {
             writeLock.unlock();
         }
     }
 
-    private void runInner(){
+    public void readRun(){
         try{
-            writeLock.lock();
-            System.out.println(Thread.currentThread().getName() + " count " + count--);
+            readLock.lock();
+            System.out.println(Thread.currentThread().getName() + "read count " + count);
         }finally {
-            writeLock.unlock();
+            readLock.unlock();
         }
     }
+
+
 
     public static void main(String[] orgs){
         final Test test = new Test();
-        for(int i=0; i<500; i++){
+        for(int i=0; i<2; i++){
             new Thread(new Runnable() {
                 @Override
                 public void run() {
-                    test.run();
+                    test.writeRun();
+                }
+            }).start();
+        }
+        for(int i=0; i<10; i++){
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    test.readRun();
                 }
             }).start();
         }

@@ -12,9 +12,9 @@ import java.util.concurrent.locks.Lock;
  */
 public class GLock implements Lock {
 
-    private String lockKey;
-    private Boolean isWriteLock;
-    private ZooKeeper zooKeeper;
+    private final String lockKey;
+    private final Boolean isWriteLock;
+    private final ZooKeeper zooKeeper;
     ThreadLocal<ZLockQueue> zLockQueueThreadLocal = new ThreadLocal<ZLockQueue>();
 
     public GLock(String lockKey, Boolean writeLock, ZooKeeper zooKeeper) {
@@ -31,7 +31,6 @@ public class GLock implements Lock {
             zLockQueue.getMyTurn(true, 0, null);
         }
         zLockQueueThreadLocal.get().lockTimesInc();
-
     }
 
     @Override
