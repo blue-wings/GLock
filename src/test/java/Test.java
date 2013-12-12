@@ -1,13 +1,15 @@
-package com.personal.GLock;
-
+import com.personal.GLock.GReadWriteLock;
 import org.apache.zookeeper.ZooKeeper;
 
 import java.io.IOException;
 import java.util.concurrent.locks.Lock;
 
 /**
- * User: FR
- * Time: 13-12-12 下午4:38
+ * Created with IntelliJ IDEA.
+ * User: work
+ * Date: 12/12/13
+ * Time: 4:56 PM
+ * To change this template use File | Settings | File Templates.
  */
 public class Test {
     private static String HOSTS = "172.27.22.112:2181,172.27.22.112:2182,172.27.22.112:2183";
