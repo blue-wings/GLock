@@ -37,6 +37,7 @@ public class Test {
         try{
             writeLock.lock();
             System.out.println(Thread.currentThread().getName() + "write count " + count--);
+//            readRun();
         }finally {
             writeLock.unlock();
         }
@@ -45,6 +46,7 @@ public class Test {
     public void readRun(){
         try{
             readLock.lock();
+            writeRun();
             System.out.println(Thread.currentThread().getName() + "read count " + count);
         }finally {
             readLock.unlock();
@@ -55,7 +57,7 @@ public class Test {
 
     public static void main(String[] orgs){
         final Test test = new Test();
-        for(int i=0; i<2; i++){
+        for(int i=0; i<5; i++){
             new Thread(new Runnable() {
                 @Override
                 public void run() {

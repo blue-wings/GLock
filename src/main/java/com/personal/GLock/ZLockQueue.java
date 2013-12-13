@@ -158,6 +158,14 @@ public class ZLockQueue {
         return --lockTimes;
     }
 
+    boolean isWriteLock() {
+        return isWriteLock;
+    }
+
+    int getLockTimes() {
+        return lockTimes;
+    }
+
     @Override
     public String toString() {
         return Thread.currentThread().getName()+"  ZLockQueue{" +
