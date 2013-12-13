@@ -3,6 +3,7 @@ import com.personal.GLock.GReadWriteLock;
 import org.apache.zookeeper.ZooKeeper;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 
@@ -39,9 +40,10 @@ public class Test {
 
     public void writeRun(){
         try{
-            writeLock.lock();
-            condition.await();
-            System.out.println(Thread.currentThread().getName() + "write count " + count--);
+            if(writeLock.tryLock(3, TimeUnit.SECONDS)){
+//                condition.await();
+                System.out.println(Thread.currentThread().getName() + "write count " + count--);
+            }
         } catch (InterruptedException e) {
             e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
         } finally {
@@ -51,9 +53,12 @@ public class Test {
 
     public void readRun(){
         try{
-            readLock.lock();
-            System.out.println(Thread.currentThread().getName() + "read count " + count);
-        }finally {
+            if(readLock.tryLock(10, TimeUnit.SECONDS)){
+                System.out.println(Thread.currentThread().getName() + "read count " + count);
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+        } finally {
             readLock.unlock();
         }
     }
@@ -70,18 +75,23 @@ public class Test {
                 }
             }).start();
         }
-        try {
-            Thread.sleep(3000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
-        }
-        for(int i=0; i<1; i++){
+//        try {
+//            Thread.sleep(10000);
+//        } catch (InterruptedException e) {
+//            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+//        }
+        for(int i=0; i<5; i++){
             new Thread(new Runnable() {
                 @Override
                 public void run() {
-                    test.condition.signal();
+                    test.readRun();
                 }
             }).start();
+        }
+        try {
+            Thread.sleep(10000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
         }
     }
 }

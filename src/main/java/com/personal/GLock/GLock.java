@@ -34,7 +34,7 @@ public class GLock implements Lock {
         if (zLockQueueThreadLocal.get() == null) {
             ZLockQueue zLockQueue = new ZLockQueue(zooKeeper, lockKey, isWriteLock);
             zLockQueueThreadLocal.set(zLockQueue);
-            zLockQueue.getMyTurn(true, 0, null);
+            zLockQueue.getMyTurn(true, Long.MAX_VALUE, null);
         }
         zLockQueueThreadLocal.get().lockTimesInc();
     }
@@ -53,7 +53,7 @@ public class GLock implements Lock {
         if (zLockQueueThreadLocal.get() == null) {
             ZLockQueue zLockQueue = new ZLockQueue(zooKeeper, lockKey, isWriteLock);
             zLockQueueThreadLocal.set(zLockQueue);
-            if(!zLockQueue.getMyTurn(true, 0, null)){
+            if(!zLockQueue.getMyTurn(false, -1, TimeUnit.MICROSECONDS)){
                 return false;
             }
         }
@@ -65,6 +65,9 @@ public class GLock implements Lock {
     public boolean tryLock(long time, TimeUnit unit) throws InterruptedException {
         if(isReadUpgradeToWrite()){
             return false;
+        }
+        if(unit==null){
+            unit = TimeUnit.MICROSECONDS;
         }
         ThreadLocal<ZLockQueue> zLockQueueThreadLocal = switchThreadLocal();
         if (zLockQueueThreadLocal.get() == null) {

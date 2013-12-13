@@ -20,6 +20,8 @@ public class ZLockQueue {
     private String preNode;
 
     private int lockTimes;
+    private boolean startByWakeUp = false;
+    private boolean maintainNode=false;
 
     ZLockQueue(ZooKeeper zooKeeper, String lockKey, boolean writeLock) {
         this.zooKeeper = zooKeeper;
@@ -37,15 +39,21 @@ public class ZLockQueue {
 
     private boolean getWriteMyTurn(boolean forWait, long time, TimeUnit unit){
         try {
-            List<String> children = zooKeeper.getChildren(PathIndex.WRITE_LOCK_NODE_PATH + "/" + lockKey, false);
+            List<String> children = zooKeeper.getChildren(PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey, false);
             Collections.sort(children);
             int index = Collections.binarySearch(children, node);
             if(index== 0){
+                System.out.println(Thread.currentThread().getName()+" get write lock "+toString());
+                maintainNode = false;
                 return true;
+            }else if(startByWakeUp){
+                System.out.println(Thread.currentThread().getName()+"try write lock expired");
+                maintainNode=true;
+                return false;
             }else{
                 preNode = children.get(index-1);
             }
-            Stat stat = zooKeeper.exists(PathIndex.WRITE_LOCK_NODE_PATH + "/" + lockKey+"/"+preNode, new preNodeDelWatcher());
+            Stat stat = zooKeeper.exists(PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey+PathIndex.SPLITER+preNode, new preNodeDelWatcher());
             if(stat == null){
                 return getWriteMyTurn(forWait, time, unit);
             }
@@ -56,31 +64,34 @@ public class ZLockQueue {
         }
         if(forWait){
             try {
-                if(unit == null){
+                if(time == Long.MAX_VALUE){
                     wait();
                 }else {
-                    wait(unit.toMillis(time/10000), (int)unit.toNanos(time%10000));
+                    wait(unit.toMillis(time));
                 }
+                System.out.println(Thread.currentThread().getName()+"write wake up");
+                startByWakeUp = true;
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            getWriteMyTurn(forWait, time, unit);
+            return getWriteMyTurn(forWait, time, unit);
         }
         return false;
     }
 
     private boolean getReadMyTurn(boolean forWait, long time, TimeUnit unit){
         try {
-            List<String> children = zooKeeper.getChildren(PathIndex.WRITE_LOCK_NODE_PATH + "/" + lockKey, false);
+            List<String> children = zooKeeper.getChildren(PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER+ lockKey, false);
             Collections.sort(children);
             int index = Collections.binarySearch(children, node);
             if(index == 0){
+                System.out.println(Thread.currentThread().getName()+" get read lock "+toString());
                 return true;
             }
             for(int i=index-1; i>=0; i-- ){
                 String pre = children.get(i);
                 try{
-                    byte[] data = zooKeeper.getData(PathIndex.WRITE_LOCK_NODE_PATH + "/" + lockKey+"/"+pre, false, null);
+                    byte[] data = zooKeeper.getData(PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey+PathIndex.SPLITER+pre, false, null);
                     if(data!=null && new String(data).equals(PathIndex.WRITE_NODE_DATA)){
                         preNode = pre;
                         break;
@@ -90,11 +101,18 @@ public class ZLockQueue {
                 }
             }
             if(preNode==null){
-                return getReadMyTurn(forWait, time, unit);
-            }
-            Stat stat = zooKeeper.exists(PathIndex.WRITE_LOCK_NODE_PATH + "/" + lockKey+"/"+preNode, new preNodeDelWatcher());
-            if(stat == null){
-                return getReadMyTurn(forWait, time, unit);
+                System.out.println(Thread.currentThread().getName()+" get read lock "+toString());
+                return true;
+            }else if(startByWakeUp){
+                System.out.println(Thread.currentThread().getName()+"pre node is" + toString());
+                Stat stat = zooKeeper.exists(PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey+PathIndex.SPLITER+preNode, new preNodeDelWatcher());
+                if(stat == null){
+                    System.out.println(Thread.currentThread().getName()+" get read lock "+toString());
+                    return true;
+                }
+                System.out.println(Thread.currentThread().getName()+"try read lock expired");
+                maintainNode=true;
+                return false;
             }
         } catch (KeeperException e) {
             e.printStackTrace();
@@ -103,22 +121,24 @@ public class ZLockQueue {
         }
         if(forWait){
             try {
-                if(unit == null){
+                if(time == Long.MAX_VALUE){
                     wait();
                 }else {
-                    wait(unit.toMillis(time/10000), (int)unit.toNanos(time%10000));
+                    wait(unit.toMillis(time));
                 }
+                System.out.println(Thread.currentThread().getName()+"read wake up");
+                startByWakeUp = true;
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            getReadMyTurn(forWait, time, unit);
+            return getReadMyTurn(forWait, time, unit);
         }
         return false;
     }
 
     void remove(){
         try {
-            if(zooKeeper.exists(PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey+ PathIndex.SPLITER+node, false)!=null){
+            if( !maintainNode && zooKeeper.exists(PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey+ PathIndex.SPLITER+node, false)!=null){
                 zooKeeper.delete(PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey + PathIndex.SPLITER + node, -1);
             }
         } catch (KeeperException e) {
@@ -132,8 +152,12 @@ public class ZLockQueue {
         @Override
         public void process(WatchedEvent event) {
             synchronized (ZLockQueue.this){
-                ZLockQueue.this.notify();
-//                System.out.println("prenode delete "+node);
+                if(maintainNode){
+                    maintainNode=false;
+                    remove();
+                } else {
+                    ZLockQueue.this.notify();
+                }
             }
         }
     }
