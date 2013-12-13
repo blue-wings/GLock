@@ -88,7 +88,14 @@ public class GLock implements Lock {
 
     @Override
     public Condition newCondition() {
-        return new GCondition();
+        return new GCondition(zooKeeper, this,lockKey);
+    }
+
+    ZLockQueue getCurrentThreadZLockQueue(){
+        if(switchThreadLocal().get()!=null){
+            return switchThreadLocal().get();
+        }
+        return null;
     }
 
     private boolean isReadUpgradeToWrite(){

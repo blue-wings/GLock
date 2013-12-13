@@ -14,4 +14,5 @@ public class PathIndex {
 
     public static final String WRITE_NODE_DATA="write";
     public static final String READ_NODE_DATA="read";
+    public static final String WAIT_NODE_DATA="wait";
 }

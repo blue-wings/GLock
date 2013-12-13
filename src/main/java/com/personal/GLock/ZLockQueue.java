@@ -138,6 +138,11 @@ public class ZLockQueue {
         }
     }
 
+    void reInQueue(boolean forWait, long time, TimeUnit unit){
+        createZNode();
+        getMyTurn(forWait, time, unit);
+    }
+
     private void createZNode() {
         try {
             String data = isWriteLock?PathIndex.WRITE_NODE_DATA:PathIndex.READ_NODE_DATA;
@@ -164,6 +169,10 @@ public class ZLockQueue {
 
     int getLockTimes() {
         return lockTimes;
+    }
+
+    String getNode() {
+        return node;
     }
 
     @Override

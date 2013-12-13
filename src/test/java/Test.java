@@ -1,7 +1,9 @@
+import com.personal.GLock.GCondition;
 import com.personal.GLock.GReadWriteLock;
 import org.apache.zookeeper.ZooKeeper;
 
 import java.io.IOException;
+import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 
 /**
@@ -21,6 +23,7 @@ public class Test {
     private GReadWriteLock readWriteLock;
     private Lock writeLock;
     private Lock readLock;
+    private Condition condition;
 
     public Test(){
         try {
@@ -28,6 +31,7 @@ public class Test {
             readWriteLock = new GReadWriteLock(zooKeeper, "lock1");
             writeLock = readWriteLock.writeLock();
             readLock = readWriteLock.readLock();
+            condition = writeLock.newCondition();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -36,9 +40,11 @@ public class Test {
     public void writeRun(){
         try{
             writeLock.lock();
+            condition.await();
             System.out.println(Thread.currentThread().getName() + "write count " + count--);
-//            readRun();
-        }finally {
+        } catch (InterruptedException e) {
+            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+        } finally {
             writeLock.unlock();
         }
     }
@@ -46,7 +52,6 @@ public class Test {
     public void readRun(){
         try{
             readLock.lock();
-            writeRun();
             System.out.println(Thread.currentThread().getName() + "read count " + count);
         }finally {
             readLock.unlock();
@@ -65,11 +70,16 @@ public class Test {
                 }
             }).start();
         }
-        for(int i=0; i<10; i++){
+        try {
+            Thread.sleep(3000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+        }
+        for(int i=0; i<1; i++){
             new Thread(new Runnable() {
                 @Override
                 public void run() {
-                    test.readRun();
+                    test.condition.signal();
                 }
             }).start();
         }

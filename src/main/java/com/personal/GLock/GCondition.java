@@ -1,8 +1,11 @@
 package com.personal.GLock;
 
+import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.ZooKeeper;
 
+import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 
@@ -13,12 +16,19 @@ import java.util.concurrent.locks.Condition;
 public class GCondition implements Condition {
 
     private ZooKeeper zooKeeper;
+    private String lockKey;
+    private GLock gLock;
 
-
+    public GCondition(ZooKeeper zooKeeper,GLock gLock, String lockKey) {
+        this.zooKeeper = zooKeeper;
+        this.gLock = gLock;
+        this.lockKey = lockKey;
+    }
 
     @Override
     public void await() throws InterruptedException {
-        //To change body of implemented methods use File | Settings | File Templates.
+        ZWaitQueue zWaitQueue =  new ZWaitQueue(zooKeeper, gLock.getCurrentThreadZLockQueue(), lockKey);
+        zWaitQueue.inWait();
     }
 
     @Override
@@ -42,12 +52,40 @@ public class GCondition implements Condition {
     }
 
     @Override
-    public void signal() {
-        //To change body of implemented methods use File | Settings | File Templates.
+    public synchronized void signal() {
+        try {
+            List<String> children = zooKeeper.getChildren(PathIndex.WAITING_QUEUE_NODE_PATH + "/" + lockKey, false);
+            if(children==null || children.isEmpty()){
+                return;
+            }
+            Collections.sort(children);
+            String firstWaitingNode = children.get(0);
+            zooKeeper.delete(PathIndex.WAITING_QUEUE_NODE_PATH + PathIndex.SPLITER + lockKey + PathIndex.SPLITER + firstWaitingNode, -1);
+        } catch (KeeperException e) {
+            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+        } catch (InterruptedException e) {
+            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+        }
     }
 
     @Override
     public void signalAll() {
-        //To change body of implemented methods use File | Settings | File Templates.
+        try {
+            List<String> children = zooKeeper.getChildren(PathIndex.WAITING_QUEUE_NODE_PATH + PathIndex.SPLITER + lockKey, false);
+            if(children==null || children.isEmpty()){
+                return;
+            }
+            for(String child : children){
+                try {
+                    zooKeeper.delete(PathIndex.WAITING_QUEUE_NODE_PATH + PathIndex.SPLITER + lockKey+PathIndex.SPLITER+child, -1);
+                }catch (Exception e){
+                    continue;
+                }
+            }
+        } catch (KeeperException e) {
+            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+        } catch (InterruptedException e) {
+            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+        }
     }
 }
