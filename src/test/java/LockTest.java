@@ -1,6 +1,6 @@
-import com.personal.GLock.GCondition;
 import com.personal.GLock.GReadWriteLock;
 import org.apache.zookeeper.ZooKeeper;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -14,9 +14,7 @@ import java.util.concurrent.locks.Lock;
  * Time: 4:56 PM
  * To change this template use File | Settings | File Templates.
  */
-public class Test {
-    private static String HOSTS = "172.27.22.112:2181,172.27.22.112:2182,172.27.22.112:2183";
-    private static int SESSION_TIMEOUT = 140;
+public class LockTest {
 
     private int count = 1000;
 
@@ -26,9 +24,9 @@ public class Test {
     private Lock readLock;
     private Condition condition;
 
-    public Test(){
+    public LockTest(){
         try {
-            zooKeeper = new ZooKeeper(HOSTS, SESSION_TIMEOUT, null);
+            zooKeeper = new ZooKeeper(Config.HOSTS, Config.SESSION_TIMEOUT, null);
             readWriteLock = new GReadWriteLock(zooKeeper, "lock1");
             writeLock = readWriteLock.writeLock();
             readLock = readWriteLock.readLock();
@@ -51,6 +49,7 @@ public class Test {
         }
     }
 
+    @Test
     public void readRun(){
         try{
             if(readLock.tryLock(10, TimeUnit.SECONDS)){
@@ -66,7 +65,7 @@ public class Test {
 
 
     public static void main(String[] orgs){
-        final Test test = new Test();
+        final LockTest test = new LockTest();
         for(int i=0; i<5; i++){
             new Thread(new Runnable() {
                 @Override
