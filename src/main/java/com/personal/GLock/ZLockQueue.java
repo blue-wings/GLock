@@ -2,6 +2,8 @@ package com.personal.GLock;
 
 import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.Stat;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -46,6 +48,8 @@ public class ZLockQueue {
     //this flag support try lock action, that main it's node util it's certainPreWriteNode or  writeNodePreReadNodes deleted.
     private boolean maintainNode = false;
 
+    private Logger logger = LoggerFactory.getLogger(ZLockQueue.class);
+
     ZLockQueue(ZooKeeper zooKeeper, String lockKey, boolean writeLock) {
         this.zooKeeper = zooKeeper;
         this.lockKey = lockKey;
@@ -66,11 +70,11 @@ public class ZLockQueue {
             Collections.sort(children);
             int index = Collections.binarySearch(children, node);
             if (index == 0) {
-                System.out.println(Thread.currentThread().getName() + " get write lock " + toString());
+                logger.debug(" get write lock " + toString());
                 maintainNode = false;
                 return true;
             } else if (startByWakeUp) {
-                System.out.println(Thread.currentThread().getName() + "try write lock expired");
+                logger.debug("try write lock expired");
                 maintainNode = true;
                 return false;
             } else {
@@ -121,7 +125,7 @@ public class ZLockQueue {
                 } else {
                     wait(unit.toMillis(time));
                 }
-                System.out.println(Thread.currentThread().getName() + "write wake up");
+                logger.debug("write wake up");
                 startByWakeUp = true;
             } catch (InterruptedException e) {
                 e.printStackTrace();
@@ -150,18 +154,18 @@ public class ZLockQueue {
             }
             if (certainPreWriteNode == null) {
                 //two condition,one first in this method that there is any write node before;two wake up by write node delete event,so it get lock certainly
-                System.out.println(Thread.currentThread().getName() + " get read lock " + toString());
+                logger.debug(" get read lock " + toString());
                 return true;
             } else if (startByWakeUp) {
                 //wake up by wait time up, but can not get lock yet,so give up.
-                System.out.println(Thread.currentThread().getName() + "pre node is" + toString());
-                System.out.println(Thread.currentThread().getName() + "try read lock expired");
+                logger.debug("pre node is" + toString());
+                logger.debug("try read lock expired");
                 maintainNode = true;
                 return false;
             } else {
                 Stat stat = zooKeeper.exists(PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey + PathIndex.SPLITER + certainPreWriteNode, new preNodeDelWatcher());
                 if (stat == null) {
-                    System.out.println(Thread.currentThread().getName() + " get read lock " + toString());
+                    logger.debug(" get read lock " + toString());
                     return true;
                 }
             }
@@ -177,7 +181,7 @@ public class ZLockQueue {
                 } else {
                     wait(unit.toMillis(time));
                 }
-                System.out.println(Thread.currentThread().getName() + "read wake up");
+                logger.debug("read wake up");
                 startByWakeUp = true;
             } catch (InterruptedException e) {
                 e.printStackTrace();
@@ -258,4 +262,18 @@ public class ZLockQueue {
         return node;
     }
 
+    @Override
+    public String toString() {
+        return "ZLockQueue{" +
+                "lockKey='" + lockKey + '\'' +
+                ", isWriteLock=" + isWriteLock +
+                ", node='" + node + '\'' +
+                ", certainPreWriteNode='" + certainPreWriteNode + '\'' +
+                ", writeNodePreReadNodes=" + writeNodePreReadNodes +
+                ", preReadNodesDeleteEventReceivedCount=" + preReadNodesDeleteEventReceivedCount +
+                ", lockTimes=" + lockTimes +
+                ", startByWakeUp=" + startByWakeUp +
+                ", maintainNode=" + maintainNode +
+                '}';
+    }
 }

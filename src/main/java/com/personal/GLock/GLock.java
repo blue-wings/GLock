@@ -2,6 +2,8 @@ package com.personal.GLock;
 
 import com.personal.GLock.Exception.LockUpgradeException;
 import org.apache.zookeeper.ZooKeeper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
@@ -18,6 +20,8 @@ public class GLock implements Lock {
     private final ZooKeeper zooKeeper;
     private static ThreadLocal<ZLockQueue> WRITE_ZLOCKQUEUE_THREADLOCAL = new ThreadLocal<ZLockQueue>();
     private static ThreadLocal<ZLockQueue> READ_ZLOCKQUEUE_THREADLOCAL = new ThreadLocal<ZLockQueue>();
+
+    private Logger logger = LoggerFactory.getLogger(GLock.class);
 
     public GLock(String lockKey, Boolean writeLock, ZooKeeper zooKeeper) {
         this.lockKey = lockKey;
@@ -117,10 +121,13 @@ public class GLock implements Lock {
 
     private ThreadLocal<ZLockQueue> switchThreadLocal(){
         if(isWriteLock){
+            logger.debug("switch to write queue threadlocal");
             return WRITE_ZLOCKQUEUE_THREADLOCAL;
         }else if (!isWriteLock && isWriteDownGradeToRead()){
+            logger.debug("downgrade to read lock but still use outside wirte lock");
             return WRITE_ZLOCKQUEUE_THREADLOCAL;
         }else {
+            logger.debug("switch to read queue threadlocal");
             return READ_ZLOCKQUEUE_THREADLOCAL;
         }
     }

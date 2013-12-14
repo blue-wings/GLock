@@ -2,6 +2,8 @@ package com.personal.GLock;
 
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.ZooKeeper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
 import java.util.Date;
@@ -19,14 +21,18 @@ public class GCondition implements Condition {
     private String lockKey;
     private GLock gLock;
 
+    private Logger logger = LoggerFactory.getLogger(GCondition.class);
+
     public GCondition(ZooKeeper zooKeeper,GLock gLock, String lockKey) {
         this.zooKeeper = zooKeeper;
         this.gLock = gLock;
         this.lockKey = lockKey;
+        logger.debug("condition init complete");
     }
 
     @Override
     public void await() throws InterruptedException {
+        logger.debug("condition start to await");
         ZWaitQueue zWaitQueue =  new ZWaitQueue(zooKeeper, gLock.getCurrentThreadZLockQueue(), lockKey);
         zWaitQueue.inWait();
     }
@@ -61,6 +67,7 @@ public class GCondition implements Condition {
             Collections.sort(children);
             String firstWaitingNode = children.get(0);
             zooKeeper.delete(PathIndex.WAITING_QUEUE_NODE_PATH + PathIndex.SPLITER + lockKey + PathIndex.SPLITER + firstWaitingNode, -1);
+            logger.debug("condition signal success");
         } catch (KeeperException e) {
             e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
         } catch (InterruptedException e) {

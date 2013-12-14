@@ -1,6 +1,8 @@
 package com.personal.GLock;
 
 import org.apache.zookeeper.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * User: FR
@@ -13,6 +15,8 @@ public class ZWaitQueue {
     private String lockKey;
 
     private String node;
+
+    private Logger logger = LoggerFactory.getLogger(ZLockQueue.class);
 
     public ZWaitQueue(ZooKeeper zooKeeper, ZLockQueue zLockQueue, String lockKey) {
         this.zooKeeper = zooKeeper;
@@ -39,7 +43,7 @@ public class ZWaitQueue {
         @Override
         public void process(WatchedEvent event) {
             synchronized (ZWaitQueue.this) {
-                System.out.println("get waiting node delete signal");
+                logger.debug(" get waiting node delete signal");
                 ZWaitQueue.this.notify();
             }
         }
