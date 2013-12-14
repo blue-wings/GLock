@@ -1,8 +1,11 @@
 import com.personal.GLock.GReadWriteLock;
+import junit.framework.Assert;
 import org.apache.zookeeper.ZooKeeper;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -36,61 +39,62 @@ public class LockTest {
         }
     }
 
-    public void writeRun(){
-        try{
-            if(writeLock.tryLock(3, TimeUnit.SECONDS)){
-//                condition.await();
-                System.out.println(Thread.currentThread().getName() + "write count " + count--);
-            }
-        } catch (InterruptedException e) {
-            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
-        } finally {
+    private Integer testWriteLockIsolation(){
+        try {
+            writeLock.lock();
+            return count--;
+        }finally {
             writeLock.unlock();
         }
     }
 
-    @Test
-    public void readRun(){
-        try{
-            if(readLock.tryLock(10, TimeUnit.SECONDS)){
-                System.out.println(Thread.currentThread().getName() + "read count " + count);
-            }
-        } catch (InterruptedException e) {
-            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+    private boolean testReadLockShare(){
+        try {
+            long start = System.currentTimeMillis();
+            readLock.lock();
+            long duration = System.currentTimeMillis() - start;
+            return duration>2;
         } finally {
             readLock.unlock();
         }
     }
 
-
-
-    public static void main(String[] orgs){
-        final LockTest test = new LockTest();
-        for(int i=0; i<5; i++){
+    @Test
+    public void writeLockIsolationTest() throws InterruptedException {
+        final LockTest lockTest = new LockTest();
+        final ConcurrentHashMap concurrentHashMap = new ConcurrentHashMap();
+        int threadNum = 500;
+        final CountDownLatch countDownLatch = new CountDownLatch(threadNum);
+        for(int i = 0 ; i<threadNum; i++){
             new Thread(new Runnable() {
                 @Override
                 public void run() {
-                    test.writeRun();
+                    concurrentHashMap.put(lockTest.testWriteLockIsolation(), "value");
+                    countDownLatch.countDown();
                 }
             }).start();
         }
-//        try {
-//            Thread.sleep(10000);
-//        } catch (InterruptedException e) {
-//            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
-//        }
-        for(int i=0; i<5; i++){
-            new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    test.readRun();
-                }
-            }).start();
-        }
-        try {
-            Thread.sleep(10000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
-        }
+        countDownLatch.await();
+        Assert.assertEquals(500, lockTest.count);
     }
+
+    @Test
+    public void readLockShareTest() throws InterruptedException {
+        final LockTest lockTest = new LockTest();
+        int threadNum = 500;
+        final CountDownLatch countDownLatch = new CountDownLatch(threadNum);
+        for(int i = 0 ; i<threadNum; i++){
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    Assert.assertTrue(lockTest.testReadLockShare());
+                    countDownLatch.countDown();
+                }
+            }).start();
+        }
+        countDownLatch.await();
+        Assert.assertEquals(500, lockTest.count);
+    }
+
+
 }
