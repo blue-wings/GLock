@@ -96,7 +96,7 @@ public class LockTest {
             new Thread(new Runnable() {
                 @Override
                 public void run() {
-                    testUse.minusCountInTryLock();
+                    testUse.minusCountInWriteTryLock();
                     countDownLatch.countDown();
                 }
             }).start();
@@ -122,7 +122,7 @@ public class LockTest {
             new Thread(new Runnable() {
                 @Override
                 public void run() {
-                    testUse.minusCountAndSleepInTryLock(2000);
+                    testUse.minusCountAndSleepInWriteTryLock(2000);
                     countDownLatch.countDown();
                 }
             }).start();
@@ -160,6 +160,38 @@ public class LockTest {
             }).start();
         }
         Assert.assertEquals(1, readResult.size());
+    }
+
+    @Test
+    public void writeWaitForReadTest() throws InterruptedException {
+        final TestUse testUse = new TestUse();
+        int readThreadNum = 5;
+        int writeThreadNum = 5;
+        final Set<Integer> readResult = new HashSet<Integer>();
+        readResult.add(1000);
+        for (int i = 0; i < readThreadNum; i++) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        readResult.add(testUse.getCountAndSleepInReadLock(500));
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }).start();
+        }
+        Thread.sleep(2000);
+        for (int i = 0; i < readThreadNum; i++) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    readResult.add(testUse.minusCountInWriteLock());
+                }
+            }).start();
+        }
+        Assert.assertEquals(1, readResult.size());
+        Assert.assertEquals(995, testUse.count);
     }
 
 
@@ -203,7 +235,7 @@ public class LockTest {
             }
         }
 
-        private void minusCountInTryLock(){
+        private void minusCountInWriteTryLock(){
             try {
                 if(writeLock.tryLock()){
                     count--;
@@ -213,7 +245,7 @@ public class LockTest {
             }
         }
 
-        private void minusCountAndSleepInTryLock(long milliSecond){
+        private void minusCountAndSleepInWriteTryLock(long milliSecond){
             try {
                 if(writeLock.tryLock()){
                     count--;
@@ -244,6 +276,16 @@ public class LockTest {
                  Thread.sleep(milliseconds);
             }finally {
                 writeLock.unlock();
+            }
+        }
+
+        private int getCountAndSleepInReadLock(long milliseconds) throws InterruptedException {
+            try {
+                readLock.lock();
+                Thread.sleep(milliseconds);
+                return count;
+            }finally {
+                readLock.unlock();
             }
         }
 
