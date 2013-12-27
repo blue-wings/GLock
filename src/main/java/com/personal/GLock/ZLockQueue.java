@@ -143,8 +143,10 @@ public class ZLockQueue {
             List<String> children = zooKeeper.getChildren(PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey, false);
             Collections.sort(children);
             int index = Collections.binarySearch(children, node);
+            certainPreWriteNode=null;
             for (int i = index - 1; i >= 0; i--) {
                 String pre = children.get(i);
+                logger.debug("pre distance "+i +" is "+pre);
                 try {
                     byte[] data = zooKeeper.getData(PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey + PathIndex.SPLITER + pre, false, null);
                     if (data != null && new String(data).equals(PathIndex.WRITE_NODE_DATA)) {
@@ -161,7 +163,7 @@ public class ZLockQueue {
                 return true;
             } else if (startByWakeUp) {
                 //wake up by wait time up, but can not get lock yet,so give up.
-                logger.debug("pre node is" + toString());
+                logger.debug("wake up node is" + toString());
                 logger.debug("try read lock expired");
                 maintainNode = true;
                 return false;
@@ -197,11 +199,6 @@ public class ZLockQueue {
 
     void remove() {
         try {
-//            if(maintainNode){
-//                List<String> children = zooKeeper.getChildren(PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey, false);
-//                Collections.sort(children);
-//                int index = Collections.binarySearch(children, node);
-//            }
             if (!maintainNode && zooKeeper.exists(PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey + PathIndex.SPLITER + node, false) != null) {
                 zooKeeper.delete(PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey + PathIndex.SPLITER + node, -1);
                 logger.debug("remove node success");

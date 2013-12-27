@@ -23,9 +23,10 @@ public class LockTest {
     /**
      * purpose: test write lock synchronized
      * case:
-     *  if: 50 threads
-     *  action: get write lock to minus testUse.count
-     *  result: testUser.count is 950
+     * if: 50 threads
+     * action: get write lock to minus testUse.count
+     * result: testUser.count is 950
+     *
      * @throws InterruptedException
      */
     @Test
@@ -34,7 +35,7 @@ public class LockTest {
         final ConcurrentHashMap concurrentHashMap = new ConcurrentHashMap();
         int threadNum = 50;
         final CountDownLatch countDownLatch = new CountDownLatch(threadNum);
-        for(int i = 0 ; i<threadNum; i++){
+        for (int i = 0; i < threadNum; i++) {
             new Thread(new Runnable() {
                 @Override
                 public void run() {
@@ -53,6 +54,7 @@ public class LockTest {
      * if:10 threads
      * action: get read lock to read testUse.count
      * result:every thread get into zhe read lock
+     *
      * @throws InterruptedException
      */
     @Test
@@ -61,13 +63,13 @@ public class LockTest {
         int threadNum = 10;
         final CountDownLatch countDownLatch = new CountDownLatch(threadNum);
         final ConcurrentHashMap concurrentHashMap = new ConcurrentHashMap();
-        for(int i = 0 ; i<threadNum; i++){
+        for (int i = 0; i < threadNum; i++) {
             new Thread(new Runnable() {
                 @Override
                 public void run() {
                     boolean result = testUse.ifGetReadLockIn2Milliseconds();
                     Assert.assertTrue(result);
-                    if(result){
+                    if (result) {
                         concurrentHashMap.put(Thread.currentThread().getName(), "value");
                     }
                     countDownLatch.countDown();
@@ -84,6 +86,7 @@ public class LockTest {
      * if:5 threads
      * action: thread try to get lock to minus testUse.count
      * result: at least one thread get in to lock minus testUse.count that testUse.count is not 1000 any more
+     *
      * @throws InterruptedException
      */
     @Test
@@ -92,7 +95,7 @@ public class LockTest {
         final ConcurrentHashMap concurrentHashMap = new ConcurrentHashMap();
         int threadNum = 5;
         final CountDownLatch countDownLatch = new CountDownLatch(threadNum);
-        for(int i = 0 ; i<threadNum; i++){
+        for (int i = 0; i < threadNum; i++) {
             new Thread(new Runnable() {
                 @Override
                 public void run() {
@@ -111,6 +114,7 @@ public class LockTest {
      * if: 2 thread
      * action: two threads attempt get lock to minus testUse.count and sleep for a while
      * result: at least one thread try lock failed because may be test case previous zookeeper node dose not move yet.
+     *
      * @throws InterruptedException
      */
     @Test
@@ -118,7 +122,7 @@ public class LockTest {
         final TestUse testUse = new TestUse();
         int threadNum = 2;
         final CountDownLatch countDownLatch = new CountDownLatch(threadNum);
-        for(int i = 0 ; i<threadNum; i++){
+        for (int i = 0; i < threadNum; i++) {
             new Thread(new Runnable() {
                 @Override
                 public void run() {
@@ -129,7 +133,7 @@ public class LockTest {
         }
         countDownLatch.await();
         boolean result = false;
-        if(testUse.count==1000 || testUse.count==999){
+        if (testUse.count == 1000 || testUse.count == 999) {
             result = true;
         }
         Assert.assertTrue(result);
@@ -153,7 +157,7 @@ public class LockTest {
             }
         }).start();
         Thread.sleep(2000);
-        for(int i=0; i<readThreadNum; i++){
+        for (int i = 0; i < readThreadNum; i++) {
             new Thread(new Runnable() {
                 @Override
                 public void run() {
@@ -202,7 +206,35 @@ public class LockTest {
         Assert.assertEquals(995, testUse.count);
     }
 
-    private class TestUse{
+    @Test
+    public void readWriteLockMixedTest() throws InterruptedException {
+        final TestUse testUse = new TestUse();
+        int readThreadNum = 5;
+        int writeThreadNum = 5;
+        final CountDownLatch countDownLatch = new CountDownLatch(10);
+        for (int i = 0; i < readThreadNum; i++) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    testUse.getCountInReadLock();
+                    countDownLatch.countDown();
+                }
+            }).start();
+        }
+        for (int i = 0; i < writeThreadNum; i++) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    testUse.minusCountInWriteLock();
+                    countDownLatch.countDown();
+                }
+            }).start();
+        }
+        countDownLatch.await();
+        Assert.assertEquals(995, testUse.count);
+    }
+
+    private class TestUse {
         private int count = 1000;
 
         ZooKeeper zooKeeper;
@@ -211,7 +243,7 @@ public class LockTest {
         private Lock readLock;
         private Condition condition;
 
-        public TestUse(){
+        public TestUse() {
             try {
                 zooKeeper = new ZooKeeper(Config.HOSTS, Config.SESSION_TIMEOUT, null);
                 readWriteLock = new GReadWriteLock(zooKeeper, "lock1");
@@ -222,39 +254,40 @@ public class LockTest {
                 e.printStackTrace();
             }
         }
-        private Integer minusCountInWriteLock(){
+
+        private Integer minusCountInWriteLock() {
             try {
                 writeLock.lock();
                 return count--;
-            }finally {
+            } finally {
                 writeLock.unlock();
             }
         }
 
-        private boolean ifGetReadLockIn2Milliseconds(){
+        private boolean ifGetReadLockIn2Milliseconds() {
             try {
                 long start = System.currentTimeMillis();
                 readLock.lock();
                 long duration = System.currentTimeMillis() - start;
-                return duration>2;
+                return duration > 2;
             } finally {
                 readLock.unlock();
             }
         }
 
-        private void minusCountInWriteTryLock(){
+        private void minusCountInWriteTryLock() {
             try {
-                if(writeLock.tryLock()){
+                if (writeLock.tryLock()) {
                     count--;
                 }
-            }finally {
+            } finally {
                 writeLock.unlock();
             }
         }
 
-        private void minusCountAndSleepInWriteTryLock(long milliSecond){
+        private void minusCountAndSleepInWriteTryLock(long milliSecond) {
             try {
-                if(writeLock.tryLock()){
+                if (writeLock.tryLock()) {
                     count--;
                     try {
                         Thread.sleep(milliSecond);
@@ -262,16 +295,16 @@ public class LockTest {
                         e.printStackTrace();
                     }
                 }
-            }finally {
+            } finally {
                 writeLock.unlock();
             }
         }
 
-        private int getCountInReadLock(){
+        private int getCountInReadLock() {
             try {
-               readLock.lock();
-               return count;
-            }finally {
+                readLock.lock();
+                return count;
+            } finally {
                 readLock.unlock();
             }
         }
@@ -280,8 +313,8 @@ public class LockTest {
             try {
                 writeLock.lock();
                 count--;
-                 Thread.sleep(milliseconds);
-            }finally {
+                Thread.sleep(milliseconds);
+            } finally {
                 writeLock.unlock();
             }
         }
@@ -291,7 +324,7 @@ public class LockTest {
                 readLock.lock();
                 Thread.sleep(milliseconds);
                 return count;
-            }finally {
+            } finally {
                 readLock.unlock();
             }
         }
