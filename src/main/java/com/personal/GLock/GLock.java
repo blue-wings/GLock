@@ -90,7 +90,7 @@ public class GLock implements Lock {
     public void unlock() {
         logger.debug("unlock");
         ThreadLocal<ZLockQueue> zLockQueueThreadLocal = switchThreadLocal();
-        if(zLockQueueThreadLocal.get()!=null && zLockQueueThreadLocal.get().lockTimesDec()==0){
+        if(zLockQueueThreadLocal.get()!=null && zLockQueueThreadLocal.get().lockTimesDec()<=0){
             zLockQueueThreadLocal.get().remove();
         }
     }

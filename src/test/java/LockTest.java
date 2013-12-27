@@ -142,12 +142,14 @@ public class LockTest {
     public void readWaiteForWriteTest() throws InterruptedException {
         final TestUse testUse = new TestUse();
         int readThreadNum = 5;
+        final CountDownLatch countDownLatch = new CountDownLatch(6);
         final Set<Integer> readResult = new HashSet<Integer>();
         readResult.add(999);
         new Thread(new Runnable() {
             @Override
             public void run() {
                 testUse.minusCountInWriteLock();
+                countDownLatch.countDown();
             }
         }).start();
         Thread.sleep(2000);
@@ -156,9 +158,11 @@ public class LockTest {
                 @Override
                 public void run() {
                     readResult.add(testUse.getCountInReadLock());
+                    countDownLatch.countDown();
                 }
             }).start();
         }
+        countDownLatch.await();
         Assert.assertEquals(1, readResult.size());
     }
 
@@ -167,6 +171,7 @@ public class LockTest {
         final TestUse testUse = new TestUse();
         int readThreadNum = 5;
         int writeThreadNum = 5;
+        final CountDownLatch countDownLatch = new CountDownLatch(10);
         final Set<Integer> readResult = new HashSet<Integer>();
         readResult.add(1000);
         for (int i = 0; i < readThreadNum; i++) {
@@ -175,6 +180,7 @@ public class LockTest {
                 public void run() {
                     try {
                         readResult.add(testUse.getCountAndSleepInReadLock(500));
+                        countDownLatch.countDown();
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
@@ -182,18 +188,19 @@ public class LockTest {
             }).start();
         }
         Thread.sleep(2000);
-        for (int i = 0; i < readThreadNum; i++) {
+        for (int i = 0; i < writeThreadNum; i++) {
             new Thread(new Runnable() {
                 @Override
                 public void run() {
-                    readResult.add(testUse.minusCountInWriteLock());
+                    testUse.minusCountInWriteLock();
+                    countDownLatch.countDown();
                 }
             }).start();
         }
+        countDownLatch.await();
         Assert.assertEquals(1, readResult.size());
         Assert.assertEquals(995, testUse.count);
     }
-
 
     private class TestUse{
         private int count = 1000;

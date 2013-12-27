@@ -65,6 +65,7 @@ public class ZLockQueue {
     }
 
     private boolean getWriteMyTurn(boolean forWait, long time, TimeUnit unit) {
+        logger.debug("get write my turn");
         try {
             List<String> children = zooKeeper.getChildren(PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey, false);
             Collections.sort(children);
@@ -120,6 +121,7 @@ public class ZLockQueue {
         }
         if (forWait) {
             try {
+                logger.debug("write waite");
                 if (time == Long.MAX_VALUE) {
                     wait();
                 } else {
@@ -136,6 +138,7 @@ public class ZLockQueue {
     }
 
     private boolean getReadMyTurn(boolean forWait, long time, TimeUnit unit) {
+        logger.debug("get read my turn");
         try {
             List<String> children = zooKeeper.getChildren(PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey, false);
             Collections.sort(children);
@@ -176,9 +179,10 @@ public class ZLockQueue {
         }
         if (forWait) {
             try {
+                logger.debug("read waite");
                 if (time == Long.MAX_VALUE) {
                     wait();
-                } else {
+                } else  {
                     wait(unit.toMillis(time));
                 }
                 logger.debug("read wake up");
@@ -193,8 +197,14 @@ public class ZLockQueue {
 
     void remove() {
         try {
+//            if(maintainNode){
+//                List<String> children = zooKeeper.getChildren(PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey, false);
+//                Collections.sort(children);
+//                int index = Collections.binarySearch(children, node);
+//            }
             if (!maintainNode && zooKeeper.exists(PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey + PathIndex.SPLITER + node, false) != null) {
                 zooKeeper.delete(PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey + PathIndex.SPLITER + node, -1);
+                logger.debug("remove node success");
             }
         } catch (KeeperException e) {
             e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
