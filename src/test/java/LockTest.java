@@ -380,6 +380,40 @@ public class LockTest {
         Assert.assertEquals(5, result.size());
     }
 
+    @Test
+    public void writeLockInterruptTest() throws InterruptedException {
+        final TestUse testUse = new TestUse();
+        final CountDownLatch countDownLatch = new CountDownLatch(2);
+        Thread thread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    testUse.getCountAndSleepInReadLock(2000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                countDownLatch.countDown();
+            }
+        });
+        Thread interruptThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    testUse.minusCountInWriteLock();
+                } finally {
+                    countDownLatch.countDown();
+                }
+            }
+        });
+        thread.start();
+        Thread.sleep(10);
+        interruptThread.start();
+        Thread.sleep(1000);
+        interruptThread.interrupt();
+        countDownLatch.await();
+        Assert.assertEquals(999, testUse.count);
+    }
+
     private class TestUse {
         private int count = 1000;
 

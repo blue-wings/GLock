@@ -117,7 +117,7 @@ public class ZLockQueue {
         } catch (KeeperException e) {
             e.printStackTrace();
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            return false;
         }
         if (forWait) {
             try {
@@ -130,7 +130,7 @@ public class ZLockQueue {
                 logger.debug("write wake up");
                 startByWakeUp = true;
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                return false;
             }
             return getWriteMyTurn(forWait, time, unit);
         }
@@ -177,7 +177,7 @@ public class ZLockQueue {
         } catch (KeeperException e) {
             e.printStackTrace();
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            return false;
         }
         if (forWait) {
             try {
@@ -190,7 +190,7 @@ public class ZLockQueue {
                 logger.debug("read wake up");
                 startByWakeUp = true;
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                return false;
             }
             return getReadMyTurn(forWait, time, unit);
         }
@@ -201,12 +201,12 @@ public class ZLockQueue {
         try {
             if (!maintainNode && zooKeeper.exists(PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey + PathIndex.SPLITER + node, false) != null) {
                 zooKeeper.delete(PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey + PathIndex.SPLITER + node, -1);
-                logger.debug("remove node success");
+                logger.debug(node + " remove node success");
             }
         } catch (KeeperException e) {
             e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
         } catch (InterruptedException e) {
-            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+            remove();
         }
     }
 
@@ -245,7 +245,7 @@ public class ZLockQueue {
         } catch (KeeperException e) {
             e.printStackTrace();
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            throw new RuntimeException("initial lock failed by interrupt");
         }
     }
 
