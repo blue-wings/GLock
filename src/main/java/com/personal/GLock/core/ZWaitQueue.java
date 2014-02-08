@@ -1,6 +1,7 @@
 package com.personal.GLock.core;
 
 import com.personal.GLock.state.ZLockQueueState;
+import com.personal.GLock.util.Config;
 import com.personal.GLock.util.ZookeeperUtil;
 import org.apache.zookeeper.*;
 import org.slf4j.Logger;
@@ -29,16 +30,16 @@ public class ZWaitQueue {
     synchronized ZLockQueueState inWait() {
         zLockQueue.remove();
 
-        ZookeeperUtil.create(zooKeeper, PathIndex.WAITING_QUEUE_NODE_PATH + PathIndex.SPLITER + lockKey + PathIndex.SPLITER, PathIndex.WAIT_NODE_DATA.getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
+        ZookeeperUtil.create(zooKeeper, Config.WAITING_QUEUE_NODE_PATH + Config.SPLITER + lockKey + Config.SPLITER, Config.WAIT_NODE_DATA.getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
 
-        node = node.substring(node.lastIndexOf(PathIndex.SPLITER) + 1);
-        ZookeeperUtil.exist(zooKeeper, PathIndex.WAITING_QUEUE_NODE_PATH + PathIndex.SPLITER + lockKey + PathIndex.SPLITER + node, new nodeDelWatcher());
+        node = node.substring(node.lastIndexOf(Config.SPLITER) + 1);
+        ZookeeperUtil.exist(zooKeeper, Config.WAITING_QUEUE_NODE_PATH + Config.SPLITER + lockKey + Config.SPLITER + node, new nodeDelWatcher());
 
         try {
             wait();
             return zLockQueue.reInQueue(true, Long.MAX_VALUE, null);
         } catch (InterruptedException e) {
-            ZookeeperUtil.deleteNode(zooKeeper, PathIndex.WAITING_QUEUE_NODE_PATH + PathIndex.SPLITER + lockKey + PathIndex.SPLITER + node, -1);
+            ZookeeperUtil.deleteNode(zooKeeper, Config.WAITING_QUEUE_NODE_PATH + Config.SPLITER + lockKey + Config.SPLITER + node, -1);
             logger.debug(e.getMessage());
             return ZLockQueueState.WAIT_INTERRUPT;
         }

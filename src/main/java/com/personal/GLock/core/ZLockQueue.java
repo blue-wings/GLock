@@ -1,6 +1,7 @@
 package com.personal.GLock.core;
 
 import com.personal.GLock.state.ZLockQueueState;
+import com.personal.GLock.util.Config;
 import com.personal.GLock.util.ZookeeperResult;
 import com.personal.GLock.util.ZookeeperUtil;
 import org.apache.zookeeper.*;
@@ -73,7 +74,7 @@ public class ZLockQueue {
 
     private ZLockQueueState getWriteMyTurn(boolean forWait, long time, TimeUnit unit) {
         logger.debug("get write my turn " + toString());
-        ZookeeperResult getChildrenResult = ZookeeperUtil.getChildren(zooKeeper, PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey, false);
+        ZookeeperResult getChildrenResult = ZookeeperUtil.getChildren(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITER + lockKey, false);
         List<String> children = getChildrenResult.getChildren();
         Collections.sort(children);
         int index = Collections.binarySearch(children, node);
@@ -87,12 +88,12 @@ public class ZLockQueue {
             return ZLockQueueState.WAKE_UP_FAILED;
         } else {
             String preNode = children.get(index - 1);
-            ZookeeperResult dataResult = ZookeeperUtil.getData(zooKeeper, PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey + PathIndex.SPLITER + preNode, false, null);
+            ZookeeperResult dataResult = ZookeeperUtil.getData(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITER + lockKey + Config.SPLITER + preNode, false, null);
             if (dataResult.getData() == null) {
                 logger.debug("pre node of this write node not exist,may be deleted. " + toString());
                 return getMyTurn(forWait, time, unit);
             }
-            if (dataResult.getData() != null && new String(dataResult.getData()).equals(PathIndex.WRITE_NODE_DATA)) {
+            if (dataResult.getData() != null && new String(dataResult.getData()).equals(Config.WRITE_NODE_DATA)) {
                 certainPreWriteNode = preNode;
             }
             //certainPreWriteNode is null, so this node must wait for all before nodes have deleted
@@ -104,7 +105,7 @@ public class ZLockQueue {
                 }
             }
             if (certainPreWriteNode != null) {
-                ZookeeperResult existResult = ZookeeperUtil.exist(zooKeeper, PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey + PathIndex.SPLITER + certainPreWriteNode, new preNodeDelWatcher());
+                ZookeeperResult existResult = ZookeeperUtil.exist(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITER + lockKey + Config.SPLITER + certainPreWriteNode, new preNodeDelWatcher());
                 if (existResult.getStat() == null) {
                     return ZLockQueueState.OK;
                 }
@@ -112,7 +113,7 @@ public class ZLockQueue {
                 Iterator<String> iterator = writeNodePreReadNodes.iterator();
                 while (iterator.hasNext()) {
                     String preReadNode = iterator.next();
-                    ZookeeperResult existResult = ZookeeperUtil.exist(zooKeeper, PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey + PathIndex.SPLITER + preReadNode, new preNodeDelWatcher());
+                    ZookeeperResult existResult = ZookeeperUtil.exist(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITER + lockKey + Config.SPLITER + preReadNode, new preNodeDelWatcher());
                     if (existResult.getStat() == null) {
                         iterator.remove();
                     }
@@ -142,16 +143,16 @@ public class ZLockQueue {
 
     private ZLockQueueState getReadMyTurn(boolean forWait, long time, TimeUnit unit) {
         logger.debug("get read my turn " + toString());
-        ZookeeperResult getChildrenResult = ZookeeperUtil.getChildren(zooKeeper, PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey, false);
+        ZookeeperResult getChildrenResult = ZookeeperUtil.getChildren(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITER + lockKey, false);
         List<String> children = getChildrenResult.getChildren();
         Collections.sort(children);
         int index = Collections.binarySearch(children, node);
         certainPreWriteNode = null;
         for (int i = index - 1; i >= 0; i--) {
             String pre = children.get(i);
-            ZookeeperResult getDataResult = ZookeeperUtil.getData(zooKeeper, PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey + PathIndex.SPLITER + pre, false, null);
+            ZookeeperResult getDataResult = ZookeeperUtil.getData(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITER + lockKey + Config.SPLITER + pre, false, null);
             byte[] data = getDataResult.getData();
-            if (data != null && new String(data).equals(PathIndex.WRITE_NODE_DATA)) {
+            if (data != null && new String(data).equals(Config.WRITE_NODE_DATA)) {
                 certainPreWriteNode = pre;
                 break;
             }
@@ -166,7 +167,7 @@ public class ZLockQueue {
             maintainNode = true;
             return ZLockQueueState.WAKE_UP_FAILED;
         } else {
-            ZookeeperResult existResult = ZookeeperUtil.exist(zooKeeper, PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey + PathIndex.SPLITER + certainPreWriteNode, new preNodeDelWatcher());
+            ZookeeperResult existResult = ZookeeperUtil.exist(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITER + lockKey + Config.SPLITER + certainPreWriteNode, new preNodeDelWatcher());
             Stat stat = existResult.getStat();
             if (stat == null) {
                 logger.debug(" get read lock " + toString());
@@ -193,8 +194,8 @@ public class ZLockQueue {
 
     void remove() {
         try {
-            if (!maintainNode && zooKeeper.exists(PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey + PathIndex.SPLITER + node, false) != null) {
-                zooKeeper.delete(PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey + PathIndex.SPLITER + node, -1);
+            if (!maintainNode && zooKeeper.exists(Config.WRITE_LOCK_NODE_PATH + Config.SPLITER + lockKey + Config.SPLITER + node, false) != null) {
+                zooKeeper.delete(Config.WRITE_LOCK_NODE_PATH + Config.SPLITER + lockKey + Config.SPLITER + node, -1);
                 logger.debug(node + " remove node success");
             }
         } catch (KeeperException e) {
@@ -233,9 +234,9 @@ public class ZLockQueue {
     }
 
     private void createZNode() {
-        String data = isWriteLock ? PathIndex.WRITE_NODE_DATA : PathIndex.READ_NODE_DATA;
-        ZookeeperResult result = ZookeeperUtil.create(zooKeeper, PathIndex.WRITE_LOCK_NODE_PATH + PathIndex.SPLITER + lockKey + PathIndex.SPLITER, data.getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
-        node = result.getNode().substring(result.getNode().lastIndexOf(PathIndex.SPLITER) + 1);
+        String data = isWriteLock ? Config.WRITE_NODE_DATA : Config.READ_NODE_DATA;
+        ZookeeperResult result = ZookeeperUtil.create(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITER + lockKey + Config.SPLITER, data.getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
+        node = result.getNode().substring(result.getNode().lastIndexOf(Config.SPLITER) + 1);
     }
 
     int lockTimesInc() {
