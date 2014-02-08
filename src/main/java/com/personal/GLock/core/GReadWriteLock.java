@@ -1,4 +1,4 @@
-package com.personal.GLock;
+package com.personal.GLock.core;
 
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;

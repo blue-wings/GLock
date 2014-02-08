@@ -1,4 +1,4 @@
-package com.personal.GLock.Exception;
+package com.personal.GLock.exception;
 
 /**
  * User: FR

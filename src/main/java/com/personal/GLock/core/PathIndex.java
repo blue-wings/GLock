@@ -1,4 +1,4 @@
-package com.personal.GLock;
+package com.personal.GLock.core;
 
 /**
  * User: FR

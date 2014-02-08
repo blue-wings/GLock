@@ -1,4 +1,4 @@
-import com.personal.GLock.GReadWriteLock;
+import com.personal.GLock.core.GReadWriteLock;
 import junit.framework.Assert;
 import org.apache.zookeeper.ZooKeeper;
 import org.junit.Test;
@@ -410,6 +410,44 @@ public class LockTest {
         interruptThread.start();
         Thread.sleep(1000);
         interruptThread.interrupt();
+        countDownLatch.await();
+        Assert.assertEquals(999, testUse.count);
+    }
+
+    /**
+     * purpose: test thread interrupt then release lock
+     * if: two thread
+     * action: one thread get read lock and interrupt, the other get write lock to minus count
+     * result: after the fist thread interrupt, zhe second thread get write lock and minus count to 999
+     * @throws InterruptedException
+     */
+    @Test
+    public void writeLockInterruptSaveTest() throws InterruptedException {
+        final TestUse testUse = new TestUse();
+        final CountDownLatch countDownLatch = new CountDownLatch(2);
+        final Thread thread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    testUse.getCountAndSleepInReadLock(2000);
+                    countDownLatch.countDown();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                    countDownLatch.countDown();
+                }
+            }
+        });
+        thread.start();
+        Thread.sleep(1000);
+        Thread.sleep(10);
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                thread.interrupt();
+                testUse.minusCountInWriteLock();
+                countDownLatch.countDown();
+            }
+        }).start();
         countDownLatch.await();
         Assert.assertEquals(999, testUse.count);
     }
