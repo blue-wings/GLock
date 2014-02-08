@@ -7,5 +7,14 @@ package com.personal.GLock.state;
 public enum ZookeeperState {
     ZOOKEEPER_KEEPER_ERROR,
     ZOOKEEPER_INTERRUPT,
-    ZOOKEEPER_INTERRUPT_CREATE,
+    ZOOKEEPER_INTERRUPT_CREATE;
+
+    public boolean isZookeeperError(){
+        if(this == ZOOKEEPER_KEEPER_ERROR){
+            return true;
+        }
+        return false;
+    }
+
+
 }

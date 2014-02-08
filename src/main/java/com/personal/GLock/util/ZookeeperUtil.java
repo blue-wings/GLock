@@ -50,6 +50,21 @@ public class ZookeeperUtil {
         return result;
     }
 
+    public static ZookeeperResult exist(ZooKeeper zooKeeper, String path, boolean watch){
+        ZookeeperResult result = new ZookeeperResult();
+        try {
+            Stat stat = zooKeeper.exists(path, watch);
+            result.setStat(stat);
+        } catch (KeeperException e) {
+            logger.error(e.getMessage());
+            result.setState(ZookeeperState.ZOOKEEPER_KEEPER_ERROR);
+        } catch (InterruptedException e) {
+            logger.debug("zookeeper can't be interrupted");
+            return exist(zooKeeper, path, watch);
+        }
+        return result;
+    }
+
     public static ZookeeperResult create(ZooKeeper zooKeeper, String path, byte data[], List<ACL> acl, CreateMode createMode){
         ZookeeperResult result = new ZookeeperResult();
         try {

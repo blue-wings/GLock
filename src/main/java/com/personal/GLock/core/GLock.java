@@ -79,6 +79,7 @@ public class GLock implements Lock {
             ZLockQueue zLockQueue = new ZLockQueue(zooKeeper, lockKey, isWriteLock);
             zLockQueueThreadLocal.set(zLockQueue);
             if (!zLockQueue.getMyTurn(true, time, unit).isSuccess()) {
+                logger.debug("try lock failed");
                 return false;
             }
         }

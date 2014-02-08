@@ -1,4 +1,7 @@
+package core;
+
 import com.personal.GLock.core.GReadWriteLock;
+import util.Config;
 import junit.framework.Assert;
 import org.apache.zookeeper.ZooKeeper;
 import org.junit.Test;
