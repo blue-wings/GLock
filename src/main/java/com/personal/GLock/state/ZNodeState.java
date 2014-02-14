@@ -4,7 +4,7 @@ package com.personal.GLock.state;
  * User: FR
  * Time: 2/7/14 2:51 PM
  */
-public enum ZLockQueueState {
+public enum ZNodeState {
 
     OK,
     WAIT_INTERRUPT,

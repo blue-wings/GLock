@@ -6,8 +6,10 @@ package com.personal.GLock.util;
  */
 public class Config {
 
+    public static final String CLIENT_ID="client_a";
+
     //path
-    public static final String SPLITER = "/";
+    public static final String SPLITTER = "/";
     public static final String LOCK_ROOT_PATH = "/zLock";
     public static final String WAKEUP_QUEUE_NODE_PATH=LOCK_ROOT_PATH+"/wakeupQueue";
     public static final String WAITING_QUEUE_NODE_PATH = LOCK_ROOT_PATH+"/waitingQueue";

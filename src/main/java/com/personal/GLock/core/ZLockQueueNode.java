@@ -1,11 +1,10 @@
 package com.personal.GLock.core;
 
-import com.personal.GLock.state.ZLockQueueState;
+import com.personal.GLock.state.ZNodeState;
 import com.personal.GLock.util.Config;
-import com.personal.GLock.util.ZookeeperResult;
-import com.personal.GLock.util.ZookeeperUtil;
+import com.personal.GLock.util.EnhancedZookeeper;
+import com.personal.GLock.util.EnhancedZookeeperResult;
 import org.apache.zookeeper.*;
-import org.apache.zookeeper.data.Stat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,10 +18,10 @@ import java.util.concurrent.TimeUnit;
  * User: FR
  * Time: 13-12-12 下午4:34
  */
-public class ZLockQueue {
+public class ZLockQueueNode {
     private final ZooKeeper zooKeeper;
     private final String lockKey;
-    private final boolean isWriteLock;
+    private final boolean isWriteType;
 
     private String node;
     /**
@@ -54,49 +53,55 @@ public class ZLockQueue {
      */
     private boolean startByPreNodeDelWakeUp = false;
     //this flag support try lock action, that main it's node util it's certainPreWriteNode or  writeNodePreReadNodes deleted.
-    private boolean maintainNode = false;
+    private boolean isMaintain = false;
 
-    private Logger logger = LoggerFactory.getLogger(ZLockQueue.class);
+    private Logger logger = LoggerFactory.getLogger(ZLockQueueNode.class);
 
-    ZLockQueue(ZooKeeper zooKeeper, String lockKey, boolean writeLock) {
+    ZLockQueueNode(ZooKeeper zooKeeper, String lockKey, boolean writeLock) {
         this.zooKeeper = zooKeeper;
         this.lockKey = lockKey;
-        isWriteLock = writeLock;
+        isWriteType = writeLock;
         createZNode();
     }
 
-    synchronized ZLockQueueState getMyTurn(boolean forWait, long time, TimeUnit unit) {
-        if (isWriteLock) {
-            return getWriteMyTurn(forWait, time, unit);
+    synchronized ZNodeState getSlot(boolean forWait, long time, TimeUnit unit) {
+        if (isWriteType) {
+            return getWriteSlot(forWait, time, unit);
         }
-        return getReadMyTurn(forWait, time, unit);
+        return getReadSlot(forWait, time, unit);
     }
 
-    private ZLockQueueState getWriteMyTurn(boolean forWait, long time, TimeUnit unit) {
-        logger.debug("get write my turn " + toString());
-        ZookeeperResult getChildrenResult = ZookeeperUtil.getChildren(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITER + lockKey, false);
-        if (getChildrenResult.getState()!= null && getChildrenResult.getState().isZookeeperError()) {
-            return ZLockQueueState.FAILED;
+    private ZNodeState getWriteSlot(boolean forWait, long time, TimeUnit unit) {
+        logger.debug("start to get write slot " + toString());
+        EnhancedZookeeperResult getChildrenResult = EnhancedZookeeper.getChildren(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITTER + lockKey, false);
+        if (getChildrenResult.isZookeeperError()) {
+            logger.error("zookeeper getChildren error, it is impossible unless zookeeper is down");
+            return ZNodeState.FAILED;
         }
         List<String> children = getChildrenResult.getChildren();
         Collections.sort(children);
         int index = Collections.binarySearch(children, node);
+        certainPreWriteNode=null;
         if (index == 0) {
-            logger.debug(" get write lock " + toString());
-            maintainNode = false;
-            return ZLockQueueState.OK;
+            logger.debug(" get write slot success  " + toString());
+            isMaintain = false;
+            return ZNodeState.OK;
         } else if (startByWakeUp && !startByPreNodeDelWakeUp) {
-            logger.debug("try write lock expired " + toString());
-            maintainNode = true;
-            return ZLockQueueState.WAKE_UP_FAILED;
+            logger.debug("get write slot expired " + toString());
+            isMaintain = true;
+            return ZNodeState.WAKE_UP_FAILED;
         } else {
             String preNode = children.get(index - 1);
-            ZookeeperResult dataResult = ZookeeperUtil.getData(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITER + lockKey + Config.SPLITER + preNode, false, null);
-            if (dataResult.getState()!=null && dataResult.getState().isZookeeperError()) {
+            EnhancedZookeeperResult dataResult = EnhancedZookeeper.getData(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITTER + lockKey + Config.SPLITTER + preNode, false, null, false);
+            if (dataResult.isZookeeperError()) {
                 logger.debug("pre node of this write node not exist,may be deleted. " + toString());
-                return getMyTurn(forWait, time, unit);
+                return ZNodeState.FAILED;
             }
-            if (dataResult.getData() != null && new String(dataResult.getData()).equals(Config.WRITE_NODE_DATA)) {
+            if(dataResult.getNodeIsDelete()!=null && dataResult.getNodeIsDelete()){
+                logger.debug("pre node of this write node not exist,may be deleted. " + toString());
+                return getWriteSlot(forWait, time, unit);
+            }
+            if (dataResult.getData() != null && dataResult.getData().equals(Config.WRITE_NODE_DATA)) {
                 certainPreWriteNode = preNode;
             }
             //certainPreWriteNode is null, so this node must wait for all before nodes have deleted
@@ -108,21 +113,27 @@ public class ZLockQueue {
                 }
             }
             if (certainPreWriteNode != null) {
-                ZookeeperResult existResult = ZookeeperUtil.exist(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITER + lockKey + Config.SPLITER + certainPreWriteNode, new preNodeDelWatcher());
+                EnhancedZookeeperResult existResult = EnhancedZookeeper.exist(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITTER + lockKey + Config.SPLITTER + certainPreWriteNode, new preNodeDelWatcher());
+                if(existResult.isZookeeperError()){
+                    return ZNodeState.FAILED;
+                }
                 if (existResult.getStat() == null) {
-                    return ZLockQueueState.OK;
+                    return ZNodeState.OK;
                 }
             } else {
                 Iterator<String> iterator = writeNodePreReadNodes.iterator();
                 while (iterator.hasNext()) {
                     String preReadNode = iterator.next();
-                    ZookeeperResult existResult = ZookeeperUtil.exist(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITER + lockKey + Config.SPLITER + preReadNode, new preNodeDelWatcher());
+                    EnhancedZookeeperResult existResult = EnhancedZookeeper.exist(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITTER + lockKey + Config.SPLITTER + preReadNode, new preNodeDelWatcher());
+                    if(existResult.isZookeeperError()){
+                        return ZNodeState.FAILED;
+                    }
                     if (existResult.getStat() == null) {
                         iterator.remove();
                     }
                 }
                 if (writeNodePreReadNodes.isEmpty()) {
-                    return ZLockQueueState.OK;
+                    return ZNodeState.OK;
                 }
             }
         }
@@ -137,18 +148,18 @@ public class ZLockQueue {
                 logger.debug("write wake up " + toString());
                 startByWakeUp = true;
             } catch (InterruptedException e) {
-                return ZLockQueueState.WAIT_INTERRUPT;
+                return ZNodeState.WAIT_INTERRUPT;
             }
-            return getWriteMyTurn(forWait, time, unit);
+            return getWriteSlot(forWait, time, unit);
         }
-        return ZLockQueueState.FAILED;
+        return ZNodeState.FAILED;
     }
 
-    private ZLockQueueState getReadMyTurn(boolean forWait, long time, TimeUnit unit) {
-        logger.debug("get read my turn " + toString());
-        ZookeeperResult getChildrenResult = ZookeeperUtil.getChildren(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITER + lockKey, false);
-        if (getChildrenResult.getState()!=null && getChildrenResult.getState().isZookeeperError()) {
-            return ZLockQueueState.FAILED;
+    private ZNodeState getReadSlot(boolean forWait, long time, TimeUnit unit) {
+        logger.debug("start to get read slot " + toString());
+        EnhancedZookeeperResult getChildrenResult = EnhancedZookeeper.getChildren(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITTER + lockKey, false);
+        if (getChildrenResult.isZookeeperError()) {
+            return ZNodeState.FAILED;
         }
         List<String> children = getChildrenResult.getChildren();
         Collections.sort(children);
@@ -156,12 +167,15 @@ public class ZLockQueue {
         certainPreWriteNode = null;
         for (int i = index - 1; i >= 0; i--) {
             String pre = children.get(i);
-            ZookeeperResult getDataResult = ZookeeperUtil.getData(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITER + lockKey + Config.SPLITER + pre, false, null);
-            if (getChildrenResult.getState()!=null && getChildrenResult.getState().isZookeeperError()) {
+            EnhancedZookeeperResult getDataResult = EnhancedZookeeper.getData(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITTER + lockKey + Config.SPLITTER + pre, false, null, false);
+            if (getDataResult.isZookeeperError()) {
+                return ZNodeState.FAILED;
+            }
+            if(getDataResult.getNodeIsDelete()){
                 continue;
             }
-            byte[] data = getDataResult.getData();
-            if (data != null && new String(data).equals(Config.WRITE_NODE_DATA)) {
+            String data = getDataResult.getData();
+            if (data != null && data.equals(Config.WRITE_NODE_DATA)) {
                 certainPreWriteNode = pre;
                 break;
             }
@@ -169,18 +183,20 @@ public class ZLockQueue {
         if (certainPreWriteNode == null) {
             //two condition,one first in this method that there is any write node before;two wake up by write node delete event,so it get lock certainly
             logger.debug(" get read lock " + toString());
-            return ZLockQueueState.OK;
+            return ZNodeState.OK;
         } else if (startByWakeUp && !startByPreNodeDelWakeUp) {
             //wake up by wait time up, but can not get lock yet,so give up.
-            logger.debug("try read lock expired " + toString());
-            maintainNode = true;
-            return ZLockQueueState.WAKE_UP_FAILED;
+            logger.debug("get read slot expired " + toString());
+            isMaintain = true;
+            return ZNodeState.WAKE_UP_FAILED;
         } else {
-            ZookeeperResult existResult = ZookeeperUtil.exist(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITER + lockKey + Config.SPLITER + certainPreWriteNode, new preNodeDelWatcher());
-            Stat stat = existResult.getStat();
-            if (stat == null) {
+            EnhancedZookeeperResult existResult = EnhancedZookeeper.exist(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITTER + lockKey + Config.SPLITTER + certainPreWriteNode, new preNodeDelWatcher());
+            if(existResult.isZookeeperError()){
+                return ZNodeState.FAILED;
+            }
+            if (existResult.getStat() == null) {
                 logger.debug(" get read lock " + toString());
-                return ZLockQueueState.OK;
+                return ZNodeState.OK;
             }
         }
         if (forWait) {
@@ -194,18 +210,18 @@ public class ZLockQueue {
                 logger.debug("read wake up " + toString());
                 startByWakeUp = true;
             } catch (InterruptedException e) {
-                return ZLockQueueState.WAIT_INTERRUPT;
+                return ZNodeState.WAIT_INTERRUPT;
             }
-            return getReadMyTurn(forWait, time, unit);
+            return getReadSlot(forWait, time, unit);
         }
-        return ZLockQueueState.FAILED;
+        return ZNodeState.FAILED;
     }
 
-    void remove() {
-        if (!maintainNode) {
-            ZookeeperResult existResult = ZookeeperUtil.exist(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITER + lockKey + Config.SPLITER + node, false);
+    synchronized void remove() {
+        if (!isMaintain) {
+            EnhancedZookeeperResult existResult = EnhancedZookeeper.exist(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITTER + lockKey + Config.SPLITTER + node, false);
             if (existResult.getStat() != null) {
-                ZookeeperUtil.deleteNode(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITER + lockKey + Config.SPLITER + node, -1);
+                EnhancedZookeeper.deleteNode(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITTER + lockKey + Config.SPLITTER + node, -1);
                 logger.debug(node + " remove node success");
             }
         }
@@ -214,7 +230,7 @@ public class ZLockQueue {
     private class preNodeDelWatcher implements Watcher {
         @Override
         public void process(WatchedEvent event) {
-            synchronized (ZLockQueue.this) {
+            synchronized (ZLockQueueNode.this) {
                 boolean action = false;
                 if (certainPreWriteNode != null) {
                     action = true;
@@ -222,27 +238,29 @@ public class ZLockQueue {
                     action = true;
                 }
                 if (action) {
-                    if (maintainNode) {
-                        maintainNode = false;
+                    if (isMaintain) {
+                        isMaintain = false;
                         remove();
                     } else {
                         startByPreNodeDelWakeUp = true;
-                        ZLockQueue.this.notify();
+                        ZLockQueueNode.this.notify();
                     }
                 }
             }
         }
     }
 
-    ZLockQueueState reInQueue(boolean forWait, long time, TimeUnit unit) {
+    ZNodeState reInQueue(boolean forWait, long time, TimeUnit unit) {
         createZNode();
-        return getMyTurn(forWait, time, unit);
+        return getSlot(forWait, time, unit);
     }
 
     private void createZNode() {
-        String data = isWriteLock ? Config.WRITE_NODE_DATA : Config.READ_NODE_DATA;
-        ZookeeperResult result = ZookeeperUtil.create(zooKeeper, Config.WRITE_LOCK_NODE_PATH + Config.SPLITER + lockKey + Config.SPLITER, data.getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
-        node = result.getNode().substring(result.getNode().lastIndexOf(Config.SPLITER) + 1);
+        String data = isWriteType ? Config.WRITE_NODE_DATA : Config.READ_NODE_DATA;
+        String superPath = Config.WRITE_LOCK_NODE_PATH + Config.SPLITTER + lockKey;
+        String createPath = Config.WRITE_LOCK_NODE_PATH + Config.SPLITTER + lockKey + Config.SPLITTER;
+        EnhancedZookeeperResult result = EnhancedZookeeper.create(zooKeeper, createPath, superPath, data, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
+        node = result.getNode().substring(result.getNode().lastIndexOf(Config.SPLITTER) + 1);
     }
 
     int lockTimesInc() {
@@ -253,8 +271,8 @@ public class ZLockQueue {
         return --lockTimes;
     }
 
-    boolean isWriteLock() {
-        return isWriteLock;
+    boolean isWriteType() {
+        return isWriteType;
     }
 
     int getLockTimes() {
@@ -267,10 +285,9 @@ public class ZLockQueue {
 
     @Override
     public String toString() {
-        return "ZLockQueue{" +
-                "zooKeeper=" + zooKeeper +
+        return "ZLockQueueNode{" +
                 ", lockKey='" + lockKey + '\'' +
-                ", isWriteLock=" + isWriteLock +
+                ", isWriteType=" + isWriteType +
                 ", node='" + node + '\'' +
                 ", certainPreWriteNode='" + certainPreWriteNode + '\'' +
                 ", writeNodePreReadNodes=" + writeNodePreReadNodes +
@@ -278,7 +295,7 @@ public class ZLockQueue {
                 ", lockTimes=" + lockTimes +
                 ", startByWakeUp=" + startByWakeUp +
                 ", startByPreNodeDelWakeUp=" + startByPreNodeDelWakeUp +
-                ", maintainNode=" + maintainNode +
+                ", isMaintain=" + isMaintain +
                 '}';
     }
 }

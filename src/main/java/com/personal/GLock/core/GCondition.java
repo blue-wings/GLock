@@ -1,6 +1,6 @@
 package com.personal.GLock.core;
 
-import com.personal.GLock.state.ZLockQueueState;
+import com.personal.GLock.state.ZNodeState;
 import com.personal.GLock.util.Config;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.ZooKeeper;
@@ -35,8 +35,8 @@ public class GCondition implements Condition {
     @Override
     public void await() throws InterruptedException {
         logger.debug("condition start to await");
-        ZWaitQueue zWaitQueue = new ZWaitQueue(zooKeeper, gLock.getCurrentThreadZLockQueue(), lockKey);
-        ZLockQueueState state = zWaitQueue.inWait();
+        ZWaitQueueNode zWaitQueueNode = new ZWaitQueueNode(zooKeeper, gLock.getCurrentThreadZLockQueue(), lockKey);
+        ZNodeState state = zWaitQueueNode.inWait();
     }
 
     @Override
@@ -68,7 +68,7 @@ public class GCondition implements Condition {
             }
             Collections.sort(children);
             String firstWaitingNode = children.get(0);
-            zooKeeper.delete(Config.WAITING_QUEUE_NODE_PATH + Config.SPLITER + lockKey + Config.SPLITER + firstWaitingNode, -1);
+            zooKeeper.delete(Config.WAITING_QUEUE_NODE_PATH + Config.SPLITTER + lockKey + Config.SPLITTER + firstWaitingNode, -1);
             logger.debug("condition signal success");
         } catch (KeeperException e) {
             e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
@@ -80,13 +80,13 @@ public class GCondition implements Condition {
     @Override
     public void signalAll() {
         try {
-            List<String> children = zooKeeper.getChildren(Config.WAITING_QUEUE_NODE_PATH + Config.SPLITER + lockKey, false);
+            List<String> children = zooKeeper.getChildren(Config.WAITING_QUEUE_NODE_PATH + Config.SPLITTER + lockKey, false);
             if (children == null || children.isEmpty()) {
                 return;
             }
             for (String child : children) {
                 try {
-                    zooKeeper.delete(Config.WAITING_QUEUE_NODE_PATH + Config.SPLITER + lockKey + Config.SPLITER + child, -1);
+                    zooKeeper.delete(Config.WAITING_QUEUE_NODE_PATH + Config.SPLITTER + lockKey + Config.SPLITTER + child, -1);
                 } catch (Exception e) {
                     continue;
                 }

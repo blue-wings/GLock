@@ -1,13 +1,15 @@
 package util;
 
 import com.personal.GLock.state.ZookeeperState;
-import com.personal.GLock.util.ZookeeperResult;
-import com.personal.GLock.util.ZookeeperUtil;
+import com.personal.GLock.util.EnhancedZookeeper;
+import com.personal.GLock.util.EnhancedZookeeperResult;
 import junit.framework.Assert;
 import org.apache.zookeeper.*;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * User: FR
@@ -26,7 +28,7 @@ public class ZooKeeperUtilTest {
      */
     @Test
     public void testNodeNotExist(){
-        ZookeeperResult result = ZookeeperUtil.exist(zooKeeper, "/notExistNode", null);
+        EnhancedZookeeperResult result = EnhancedZookeeper.exist(zooKeeper, "/test/notExistNode", null);
         Assert.assertNull(result.getStat());
     }
 
@@ -35,21 +37,40 @@ public class ZooKeeperUtilTest {
      */
     @Test
     public void testGetDataOfNotExistNode(){
-        ZookeeperResult result = ZookeeperUtil.getData(zooKeeper, "/notExistNode", false, null);
+        EnhancedZookeeperResult result = EnhancedZookeeper.getData(zooKeeper, "/test/notExistNode", false, null, false);
         Assert.assertEquals(ZookeeperState.ZOOKEEPER_KEEPER_ERROR, result.getState());
     }
 
+    /**
+     * bind watch twice
+     * @throws IOException
+     * @throws InterruptedException
+     */
     @Test
-    public void testExistWatchTwice(){
-        ZookeeperResult result = ZookeeperUtil.create(zooKeeper, "/test/testExistWatchTwice", "aa".getBytes(), null, CreateMode.EPHEMERAL_SEQUENTIAL);
-//        ZookeeperUtil.exist(zooKeeper, result.getNode(), new TestWatcher());
-//        ZookeeperUtil.exist(zooKeeper, result.getNode(), new TestWatcher());
-//        ZookeeperUtil.deleteNode(zooKeeper, result.getNode(), -1);
+    public void testExistWatchTwice() throws IOException, InterruptedException {
+        EnhancedZookeeperResult result = EnhancedZookeeper.create(zooKeeper, "/test", "/test/testExistWatchTwice", "test", ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
+        AtomicInteger count = new AtomicInteger(2);
+        CountDownLatch countDownLatch = new CountDownLatch(2);
+        EnhancedZookeeper.exist(zooKeeper, result.getNode(), new TestWatcher(count, countDownLatch));
+        EnhancedZookeeper.exist(zooKeeper, result.getNode(), new TestWatcher(count, countDownLatch));
+        EnhancedZookeeper.deleteNode(zooKeeper, result.getNode(), -1);
+        countDownLatch.await();
+        Assert.assertEquals(0, count);
     }
 
     private class TestWatcher implements Watcher {
+        AtomicInteger count;
+        CountDownLatch countDownLatch;
+
+        private TestWatcher(AtomicInteger count, CountDownLatch countDownLatch) {
+            this.count = count;
+            this.countDownLatch = countDownLatch;
+        }
+
         @Override
         public void process(WatchedEvent event) {
+            count.decrementAndGet();
+            countDownLatch.countDown();
             System.out.println("execute watch");
         }
     }

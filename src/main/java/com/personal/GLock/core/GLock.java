@@ -18,8 +18,8 @@ public class GLock implements Lock {
     private final String lockKey;
     private final Boolean isWriteLock;
     private final ZooKeeper zooKeeper;
-    private static ThreadLocal<ZLockQueue> WRITE_ZLOCKQUEUE_THREADLOCAL = new ThreadLocal<ZLockQueue>();
-    private static ThreadLocal<ZLockQueue> READ_ZLOCKQUEUE_THREADLOCAL = new ThreadLocal<ZLockQueue>();
+    private static ThreadLocal<ZLockQueueNode> WRITE_ZLOCKQUEUE_THREADLOCAL = new ThreadLocal<ZLockQueueNode>();
+    private static ThreadLocal<ZLockQueueNode> READ_ZLOCKQUEUE_THREADLOCAL = new ThreadLocal<ZLockQueueNode>();
 
     private Logger logger = LoggerFactory.getLogger(GLock.class);
 
@@ -34,11 +34,11 @@ public class GLock implements Lock {
         if (isReadUpgradeToWrite()) {
             throw new LockUpgradeException("read lock can not upgrade to write lock");
         }
-        ThreadLocal<ZLockQueue> zLockQueueThreadLocal = switchThreadLocal();
+        ThreadLocal<ZLockQueueNode> zLockQueueThreadLocal = switchThreadLocal();
         if (zLockQueueThreadLocal.get() == null) {
-            ZLockQueue zLockQueue = new ZLockQueue(zooKeeper, lockKey, isWriteLock);
-            zLockQueueThreadLocal.set(zLockQueue);
-            zLockQueue.getMyTurn(true, Long.MAX_VALUE, null);
+            ZLockQueueNode zLockQueueNode = new ZLockQueueNode(zooKeeper, lockKey, isWriteLock);
+            zLockQueueThreadLocal.set(zLockQueueNode);
+            zLockQueueNode.getSlot(true, Long.MAX_VALUE, null);
         }
         zLockQueueThreadLocal.get().lockTimesInc();
     }
@@ -53,11 +53,11 @@ public class GLock implements Lock {
         if (isReadUpgradeToWrite()) {
             return false;
         }
-        ThreadLocal<ZLockQueue> zLockQueueThreadLocal = switchThreadLocal();
+        ThreadLocal<ZLockQueueNode> zLockQueueThreadLocal = switchThreadLocal();
         if (zLockQueueThreadLocal.get() == null) {
-            ZLockQueue zLockQueue = new ZLockQueue(zooKeeper, lockKey, isWriteLock);
-            zLockQueueThreadLocal.set(zLockQueue);
-            if (!zLockQueue.getMyTurn(false, -1, TimeUnit.MICROSECONDS).isSuccess()) {
+            ZLockQueueNode zLockQueueNode = new ZLockQueueNode(zooKeeper, lockKey, isWriteLock);
+            zLockQueueThreadLocal.set(zLockQueueNode);
+            if (!zLockQueueNode.getSlot(false, -1, TimeUnit.MICROSECONDS).isSuccess()) {
                 logger.debug("try lock failed");
                 return false;
             }
@@ -74,11 +74,11 @@ public class GLock implements Lock {
         if (unit == null) {
             unit = TimeUnit.MILLISECONDS;
         }
-        ThreadLocal<ZLockQueue> zLockQueueThreadLocal = switchThreadLocal();
+        ThreadLocal<ZLockQueueNode> zLockQueueThreadLocal = switchThreadLocal();
         if (zLockQueueThreadLocal.get() == null) {
-            ZLockQueue zLockQueue = new ZLockQueue(zooKeeper, lockKey, isWriteLock);
-            zLockQueueThreadLocal.set(zLockQueue);
-            if (!zLockQueue.getMyTurn(true, time, unit).isSuccess()) {
+            ZLockQueueNode zLockQueueNode = new ZLockQueueNode(zooKeeper, lockKey, isWriteLock);
+            zLockQueueThreadLocal.set(zLockQueueNode);
+            if (!zLockQueueNode.getSlot(true, time, unit).isSuccess()) {
                 logger.debug("try lock failed");
                 return false;
             }
@@ -90,7 +90,7 @@ public class GLock implements Lock {
     @Override
     public void unlock() {
         logger.debug("unlock");
-        ThreadLocal<ZLockQueue> zLockQueueThreadLocal = switchThreadLocal();
+        ThreadLocal<ZLockQueueNode> zLockQueueThreadLocal = switchThreadLocal();
         if (zLockQueueThreadLocal.get() != null && zLockQueueThreadLocal.get().lockTimesDec() <= 0) {
             zLockQueueThreadLocal.get().remove();
         }
@@ -101,7 +101,7 @@ public class GLock implements Lock {
         return new GCondition(zooKeeper, this, lockKey);
     }
 
-    ZLockQueue getCurrentThreadZLockQueue() {
+    ZLockQueueNode getCurrentThreadZLockQueue() {
         if (switchThreadLocal().get() != null) {
             return switchThreadLocal().get();
         }
@@ -122,7 +122,7 @@ public class GLock implements Lock {
         return false;
     }
 
-    private ThreadLocal<ZLockQueue> switchThreadLocal() {
+    private ThreadLocal<ZLockQueueNode> switchThreadLocal() {
         if (isWriteLock) {
             logger.debug("switch to write queue threadlocal");
             return WRITE_ZLOCKQUEUE_THREADLOCAL;
